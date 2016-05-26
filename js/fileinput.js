@@ -446,6 +446,9 @@
             if (isEmpty(self.allowedPreviewTypes)) {
                 self.allowedPreviewTypes = defaultPreviewTypes;
             }
+			if (isEmpty(self.displayPreviewTypes)) {
+                self.displayPreviewTypes = self.allowedPreviewTypes;
+            }
             self.uploadFileAttr = !isEmpty($el.attr('name')) ? $el.attr('name') : 'file_data';
             self.reader = null;
             self.formdata = {};
@@ -1565,74 +1568,97 @@
                 return;
             }
             var self = this, data = objUrl.createObjectURL(file), $obj = $('#' + previewId),
-                config = self.previewSettings.other,
-                footer = self.renderFileFooter(file.name, config.width),
-                previewOtherTemplate = self.getPreviewTemplate('other'),
-                ind = previewId.slice(previewId.lastIndexOf('-') + 1),
-                frameClass = '';
+               config = self.previewSettings.other,
+               footer = self.renderFileFooter(file.name, config.width),
+               previewOtherTemplate = self.getPreviewTemplate('other'),
+               ind = previewId.slice(previewId.lastIndexOf('-') + 1),
+               frameClass = '', typ, chk, checkFile, j, fileCount = 0,
+               settings = self.fileTypeSettings,
+               caption = self.slug(file.name),
+               dispalyTypes = self.displayPreviewTypes;
+
+            for (j = 0; j < dispalyTypes.length; j += 1) {
+                typ = dispalyTypes[j];
+                checkFile = settings[typ];
+                chk = (checkFile !== undefined && checkFile(file.type, caption));
+                fileCount += isEmpty(chk) ? 0 : chk.length;
+            }
+            if (fileCount == 0) {
+                return;
+            }
+
             if (isDisabled === true) {
                 frameClass = ' btn disabled';
                 footer += '<div class="file-other-error text-danger"><i class="glyphicon glyphicon-exclamation-sign"></i></div>';
             }
-            self.$preview.append("\n" + previewOtherTemplate
-                .repl('{previewId}', previewId)
-                .repl('{frameClass}', frameClass)
-                .repl('{fileindex}', ind)
-                .repl('{caption}', self.slug(file.name))
-                .repl('{width}', config.width)
-                .repl('{height}', config.height)
-                .repl('{type}', file.type)
-                .repl('{data}', data)
-                .repl('{footer}', footer));
-            $obj.on('load', function () {
-                objUrl.revokeObjectURL($obj.attr('data'));
-            });
+         
+            if (chkDisplayTypes) {
+                self.$preview.append("\n" + previewOtherTemplate
+                    .repl('{previewId}', previewId)
+                    .repl('{frameClass}', frameClass)
+                    .repl('{fileindex}', ind)
+                    .repl('{caption}', self.slug(file.name))
+                    .repl('{width}', config.width)
+                    .repl('{height}', config.height)
+                    .repl('{type}', file.type)
+                    .repl('{data}', data)
+                    .repl('{footer}', footer));
+                $obj.on('load', function () {
+                    objUrl.revokeObjectURL($obj.attr('data'));
+                });
+            }
         },
         previewFile: function (file, theFile, previewId, data) {
             if (!this.showPreview) {
                 return;
             }
             var self = this, cat = self.parseFileType(file), caption = self.slug(file.name), content, strText,
-                types = self.allowedPreviewTypes, mimes = self.allowedPreviewMimeTypes,
+                types = self.allowedPreviewTypes,
+				mimes = self.allowedPreviewMimeTypes,
+				displayTypes = self.displayPreviewTypes,
                 tmplt = self.getPreviewTemplate(cat),
                 config = isSet(cat, self.previewSettings) ? self.previewSettings[cat] : defaultPreviewSettings[cat],
                 wrapLen = parseInt(self.wrapTextLength, 10), wrapInd = self.wrapIndicator,
                 chkTypes = types.indexOf(cat) >= 0, id, height,
                 chkMimes = isEmpty(mimes) || (!isEmpty(mimes) && mimes.indexOf(file.type) !== -1),
+				chkDisplayTypes = displayTypes.indexOf(cat) >= 0,
                 footer = self.renderFileFooter(caption, config.width), modal = '',
                 ind = previewId.slice(previewId.lastIndexOf('-') + 1);
-            if (chkTypes && chkMimes) {
-                if (cat === 'text') {
-                    strText = htmlEncode(theFile.target.result);
-                    objUrl.revokeObjectURL(data);
-                    if (strText.length > wrapLen) {
-                        id = 'text-' + uniqId();
-                        height = window.innerHeight * 0.75;
-                        modal = self.getLayoutTemplate('modal').repl('{id}', id)
-                            .repl('{title}', caption)
-                            .repl('{height}', height)
-                            .repl('{body}', strText);
-                        wrapInd = wrapInd
-                            .repl('{title}', caption)
-                            .repl('{dialog}', "$('#" + id + "').modal('show')");
-                        strText = strText.substring(0, (wrapLen - 1)) + wrapInd;
+          
+            if (chkDisplayTypes) {
+                if (chkTypes && chkMimes) {
+                    if (cat === 'text') {
+                        strText = htmlEncode(theFile.target.result);
+                        objUrl.revokeObjectURL(data);
+                        if (strText.length > wrapLen) {
+                            id = 'text-' + uniqId();
+                            height = window.innerHeight * 0.75;
+                            modal = self.getLayoutTemplate('modal').repl('{id}', id)
+								.repl('{title}', caption)
+								.repl('{height}', height)
+								.repl('{body}', strText);
+                            wrapInd = wrapInd
+								.repl('{title}', caption)
+								.repl('{dialog}', "$('#" + id + "').modal('show')");
+                            strText = strText.substring(0, (wrapLen - 1)) + wrapInd;
+                        }
+                        content = tmplt.repl('{previewId}', previewId).repl('{caption}', caption)
+							.repl('{frameClass}', '')
+							.repl('{type}', file.type).repl('{width}', config.width)
+							.repl('{height}', config.height).repl('{data}', strText)
+							.repl('{footer}', footer).repl('{fileindex}', ind) + modal;
+                    } else {
+                        content = tmplt.repl('{previewId}', previewId).repl('{caption}', caption)
+							.repl('{frameClass}', '')
+							.repl('{type}', file.type).repl('{data}', data)
+							.repl('{width}', config.width).repl('{height}', config.height)
+							.repl('{footer}', footer).repl('{fileindex}', ind);
                     }
-                    content = tmplt.repl('{previewId}', previewId).repl('{caption}', caption)
-                        .repl('{frameClass}', '')
-                        .repl('{type}', file.type).repl('{width}', config.width)
-                        .repl('{height}', config.height).repl('{data}', strText)
-                        .repl('{footer}', footer).repl('{fileindex}', ind) + modal;
+                    self.$preview.append("\n" + content);
+                    self.autoSizeImage(previewId);
                 } else {
-                    content = tmplt.repl('{previewId}', previewId).repl('{caption}', caption)
-                        .repl('{frameClass}', '')
-                        .repl('{type}', file.type).repl('{data}', data)
-                        .repl('{width}', config.width).repl('{height}', config.height)
-                        .repl('{footer}', footer).repl('{fileindex}', ind);
+                    self.previewDefault(file, previewId);
                 }
-                self.$preview.append("\n" + content);
-                self.autoSizeImage(previewId);
-            } else {
-                self.previewDefault(file, previewId);
             }
         },
         slugDefault: function (text) {
@@ -2046,6 +2072,7 @@
         layoutTemplates: defaultLayoutTemplates,
         previewTemplates: defaultPreviewTemplates,
         allowedPreviewTypes: defaultPreviewTypes,
+        displayPreviewTypes: null,
         allowedPreviewMimeTypes: null,
         allowedFileTypes: null,
         allowedFileExtensions: null,
